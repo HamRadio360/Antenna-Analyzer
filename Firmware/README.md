@@ -6,18 +6,14 @@ This directory contains the firmware for the K6BEZ Antenna Analyzer.
 
 Currently the firmware supports revision 6 and 7 PCBs with Arduino Pro Mini compatible microcontrollers and Analog Devices AD9850 synthesizers.
 
-# Installing
+## Standard Firmware
 
-The firmware can be built and installed using the Arduino Integrated Development Environment (IDE).
+This is the firmware originally developed by K6BEZ and supports the core features of the antenna analyzer. If you are getting started or want reliable and stable software use the standard firmware.
 
-1. Install the [Arduino IDE Editor & Compiler](https://www.arduino.cc/en/Main/Software)
-2. Add the SparkFun Board Manager URLs
-  * Go to File / Preferences, and paste this URL into the 'Additional Boards Manager URLs' input field...
-  * https://raw.githubusercontent.com/sparkfun/Arduino_Boards/master/IDE_Board_Manager/package_sparkfun_index.json
-3. Install the Arduino Pro Micro board definitions file
-  * This board file will work for the SparkFun or DealExtreme Arduino Pro Micro board
-  * In the Arduino IDE, click Tools / Board / then scroll to the top and click <Board Manager>
-  * At the top of the Board Manager enter "sparkfun" and hit return
-  * You will see multiple Sparkfun board definition sets
-  * Click on the box labeled “SparkFun AVR Boards”
-  * Click <Install>
+## Advanced Firmware
+
+This firmware contains more features but may require more work to build and install.
+
+# Issues, Bugs, Ideas for improvements
+
+We are tracking all issues and ideas for improvements using the [GitHub issues](https://github.com/HamRadio360/Antenna-Analyzer/issues) tracker.
