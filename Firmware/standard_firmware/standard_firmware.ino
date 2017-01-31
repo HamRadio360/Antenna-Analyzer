@@ -255,12 +255,9 @@ void Perform_sweep() {
 
   // Reset the DDS
   digitalWrite(RESET, HIGH);
-  delay(1);
   digitalWrite(RESET, LOW);
-  delay(10);
   SetDDSFreq(Fstart);
-  delay(100);
-
+  
 //  REV_nosig = analogRead(A0);
 //  FWD_nosig = analogRead(A1);
 //  if(mode==0){
@@ -284,7 +281,6 @@ void Perform_sweep() {
     if (digitalRead(BAND) == LOW) {
       mode_pressed = 1;
     }
-    delay(10);
     // Read the forawrd and reverse voltages
     REV = analogRead(A0);
     FWD = analogRead(A1);
@@ -326,7 +322,6 @@ void Perform_sweep() {
 
   lcd.setCursor(15, 1);
   lcd.print(".");
-  delay(100);
   lcd.setCursor(15, 1);
   lcd.print(" ");
   lcd.setCursor(0, 1);
@@ -336,7 +331,6 @@ void Perform_sweep() {
   lcd.print(":1    ");
 
   digitalWrite(13, HIGH);
-  //delay(10);
   digitalWrite(13, LOW);
 }
 
