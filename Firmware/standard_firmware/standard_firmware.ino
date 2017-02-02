@@ -42,6 +42,14 @@ long num_steps = 1001; // Number of steps to use in the sweep
 char incoming_char; // Character read from serial stream
 byte mode_pressed = 0;
 int mode = 1;
+int fwdOffset = 0;
+int revOffset = 0;
+// Short the output, then measure FWD and REV over a sweep for these values. If not, set both equal to 1.
+int fwdDiodeComp = 224;
+int revDiodeComp = 211;
+//Short the diode cathodes together, measure FWD and REV over a sweep for these values. If not, set both equal to 1.
+int fwdGainComp = 1;
+int revGainComp = 1;
 
 void setup() {
   // set up the LCD's number of columns and rows:
@@ -67,6 +75,27 @@ void setup() {
   // Reset the DDS
   digitalWrite(RESET, HIGH);
   digitalWrite(RESET, LOW);
+
+  // calibrate REV/FWD offset
+//  lcd.clear();
+//  lcd.setCursor(0, 0);
+//  lcd.print("Calibrating...");
+
+  SetDDSFreq(1L);
+  delay(1);
+  for (int i = 0; i < 1000; i++) {
+    fwdOffset += analogRead(A1);
+    revOffset += analogRead(A0);
+  }
+  fwdOffset = fwdOffset / 1000;
+  revOffset = revOffset / 1000;
+
+//  lcd.setCursor(0, 1);
+//  lcd.print("FWD: ");
+//  lcd.print(fwdOffset);
+//  lcd.print("  REV: ");
+//  lcd.print(revOffset);
+//  delay(2000);
 
   //Initialise the incoming serial number to zero
   serial_input_number = 0;
@@ -147,7 +176,7 @@ void loop() {
     }
     num_steps = 1000;
 
-    switch(mode){
+    switch (mode) {
       case 1:
         // Full sweep 1-30 MHz
         lcd.clear();
@@ -257,19 +286,8 @@ void Perform_sweep() {
   digitalWrite(RESET, HIGH);
   digitalWrite(RESET, LOW);
   SetDDSFreq(Fstart);
+  delay(1);
   
-//  REV_nosig = analogRead(A0);
-//  FWD_nosig = analogRead(A1);
-//  if(mode==0){
-//    Serial.print("FWD ");
-//    Serial.print(FWD_nosig);
-//    Serial.print(", REV ");
-//    Serial.println(REV_nosig);
-//    Serial.flush();
-//  }
-
-
-
   // Start loop
   for (long i = 0; i <= num_steps; i++) {
     // Calculate current frequency
@@ -277,15 +295,20 @@ void Perform_sweep() {
 
     // Set DDS to current frequency
     SetDDSFreq(current_freq);
+    delay(1);
     // Wait a little for settling
     if (digitalRead(BAND) == LOW) {
       mode_pressed = 1;
     }
-    // Read the forawrd and reverse voltages
-    REV = analogRead(A0);
-    FWD = analogRead(A1);
 
-    if (REV >= FWD) {
+    // Read the reverse and foward voltages and calibrate them
+    REV = (analogRead(A0) - revOffset);
+    FWD = (analogRead(A1) - fwdOffset);
+
+    FWD = (revDiodeComp * FWD) / fwdDiodeComp;
+    REV = (fwdGainComp * REV) / revGainComp;
+
+    if (REV >= FWD) { 
       // To avoid a divide by zero or negative VSWR then set to max 999
       VSWR = 999;
     } else {
@@ -340,7 +363,7 @@ void SetDDSFreq(long Freq_Hz) {
 
   // Send one byte at a time
   for (int b = 0; b < 4; b++, f >>= 8) {
-//    SPI.transfer(f & 0xFF);
+    //    SPI.transfer(f & 0xFF);
     send_byte(f & 0xFF);
   }
 
