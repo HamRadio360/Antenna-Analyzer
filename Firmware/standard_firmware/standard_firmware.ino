@@ -5,7 +5,7 @@
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// This program is distributed in the hope that it will be useful,
+//   This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
@@ -38,10 +38,21 @@ long Fstart = 1000000;  // Start Frequency for sweep
 long Fstop = 30000000;  // Stop Frequency for sweep
 unsigned long current_freq; // Temp variable used during sweep
 long serial_input_number; // Used to build number from serial stream
-long num_steps = 1001; // Number of steps to use in the sweep
+long num_steps = 101; // Number of steps to use in the sweep
 char incoming_char; // Character read from serial stream
 byte mode_pressed = 0;
 int mode = 1;
+
+// CALIBRATION VALUES
+// set AD9850 to zero output, measure FWD and REV over a long period for these values. If not, set both equal to 0.
+int fwdOffset = 6; //6 compensates for idle noise on the fwd diode and amplifier
+int revOffset = 4; //4 compensates for idle noise on the fwd diode and amplifier
+// Short the antenna port to ground, measure FWD and REV over a sweep for this ratio (REV/FWD). If not, set  equal to 1.
+// see comments in PerformSweep() about alternative compensation schemes....there is a frequency dependent noise component.
+double diodeComp = 0.9414309839;
+// Short the diode cathodes together, measure FWD and REV over a sweep for this ratio (FWD/REV). If not, set both equal to 1.
+// see comments in PerformSweep() about alternative compensation schemes....there is a frequency dependent noise component.
+double gainComp = 0.995193251;
 
 void setup() {
   // set up the LCD's number of columns and rows:
@@ -147,7 +158,7 @@ void loop() {
     }
     num_steps = 1000;
 
-    switch(mode){
+    switch (mode) {
       case 1:
         // Full sweep 1-30 MHz
         lcd.clear();
@@ -236,7 +247,6 @@ void loop() {
         Fstart = 28000000;
         Fstop = 30000000;
         break;
-
     }
   }
 }
@@ -244,50 +254,51 @@ void loop() {
 void Perform_sweep() {
   int FWD = 0;
   int REV = 0;
-  int REV_nosig = 0;
-  int FWD_nosig = 0;
   double VSWR;
   double minVSWR;
   long minFreq;
-  long Fstep = (Fstop - Fstart) / num_steps;
   minVSWR = 999;
   minFreq = Fstart;
-
-  // Reset the DDS
-  digitalWrite(RESET, HIGH);
-  delay(1);
-  digitalWrite(RESET, LOW);
-  delay(10);
-  SetDDSFreq(Fstart);
-  delay(100);
-
-//  REV_nosig = analogRead(A0);
-//  FWD_nosig = analogRead(A1);
-//  if(mode==0){
-//    Serial.print("FWD ");
-//    Serial.print(FWD_nosig);
-//    Serial.print(", REV ");
-//    Serial.println(REV_nosig);
-//    Serial.flush();
-//  }
-
-
 
   // Start loop
   for (long i = 0; i <= num_steps; i++) {
     // Calculate current frequency
-    current_freq = Fstart + i * Fstep;
+    current_freq = Fstart + i * ((Fstop - Fstart) / num_steps);
 
     // Set DDS to current frequency
     SetDDSFreq(current_freq);
+    delay(1);
+
+    //discard a few measurements
+    for (int j = 0; j < 19; j++) {
+      analogRead(A1);
+      analogRead(A0);
+    }
+
     // Wait a little for settling
     if (digitalRead(BAND) == LOW) {
       mode_pressed = 1;
     }
-    delay(10);
-    // Read the forawrd and reverse voltages
-    REV = analogRead(A0);
-    FWD = analogRead(A1);
+
+    // Average the reverse and foward voltages and calibrate them
+    for (int k = 0; k < 50; k++) {
+      REV += (analogRead(A0) - revOffset);
+      FWD += (analogRead(A1) - fwdOffset);
+    }
+    FWD /= 50;
+    REV /= 50;
+
+    // Mean compensation values
+    // FWD = diodeComp * FWD;
+    // REV = gainComp * REV;
+
+    // Linear compensation equatiions
+    // FWD = FWD * (2e-9 * current_freq + 0.9231) ;
+    // REC = REV *(2e-10 * current_freq + 0.9916);
+
+    // Polynomial compensation equations
+    FWD = FWD * (8.9070e-17 * current_freq * current_freq - 8.1425e-10 * current_freq + 0.9832);
+    REV = REV * (-2.7626e-18 * current_freq * current_freq + 3.1516e-10 * current_freq + 0.9912);
 
     if (REV >= FWD) {
       // To avoid a divide by zero or negative VSWR then set to max 999
@@ -320,24 +331,26 @@ void Perform_sweep() {
     Serial.print("Freq ");
     Serial.print(minFreq);
     Serial.print(", VSWR ");
-    Serial.println(minVSWR);
+    Serial.println(minVSWR, 3);
     Serial.flush();
   }
 
-  lcd.setCursor(15, 1);
-  lcd.print(".");
-  delay(100);
-  lcd.setCursor(15, 1);
-  lcd.print(" ");
+  // display results
   lcd.setCursor(0, 1);
-  lcd.print(minFreq);
-  lcd.print(",");
-  lcd.print(minVSWR);
-  lcd.print(":1    ");
-
-  digitalWrite(13, HIGH);
-  //delay(10);
-  digitalWrite(13, LOW);
+  lcd.print("F:");
+  if (minFreq < 10e6) {
+    lcd.setCursor(3, 1);
+  }
+  else
+    lcd.setCursor(2, 1);
+  lcd.print(minFreq / 1e6, 3);
+  lcd.setCursor(9, 1);
+  lcd.print("V:");
+  if (minVSWR > 1)
+    lcd.setCursor(11, 1);
+  else
+    lcd.setCursor(10, 1);
+  lcd.print(minVSWR, 3);
 }
 
 void SetDDSFreq(long Freq_Hz) {
@@ -346,7 +359,7 @@ void SetDDSFreq(long Freq_Hz) {
 
   // Send one byte at a time
   for (int b = 0; b < 4; b++, f >>= 8) {
-//    SPI.transfer(f & 0xFF);
+    //    SPI.transfer(f & 0xFF);
     send_byte(f & 0xFF);
   }
 
